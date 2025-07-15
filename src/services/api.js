@@ -1,12 +1,10 @@
 import axios from 'axios';
 
 // Use environment variable for API URL, fallback to localhost for development
-const API_BASE_URL = process.env.REACT_APP_API_URL || 
-                     process.env.REACT_APP_API_BASE_URL ||
-                     'http://localhost:8080/api';
+const API_BASE_URL = 'https://university-cms-backend-production.up.railway.app/api';
 
 const api = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: 'https://university-cms-backend-production.up.railway.app/api',
   headers: {
     'Content-Type': 'application/json',
   },
