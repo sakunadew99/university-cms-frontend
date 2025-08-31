@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Form, Button, Card, Alert, Row, Col, Table } from 'react-bootstrap';
-import { FaPlus, FaTrash } from 'react-icons/fa';
+import { Form, Button, Card, Alert, Row, Col, Table, Modal } from 'react-bootstrap';
+import { FaPlus, FaTrash, FaEdit, FaSave } from 'react-icons/fa';
 import { courseAPI, studentAPI, registrationAPI } from '../../services/api';
 import LoadingSpinner from '../Common/LoadingSpinner';
 
@@ -14,8 +14,14 @@ const RegistrationForm = () => {
 
   const [newRegistration, setNewRegistration] = useState({
     studentId: '',
-    courseId: ''
+    courseId: '',
+    result: '' // NEW FIELD
   });
+
+  // For editing result
+  const [editModal, setEditModal] = useState(false);
+  const [selectedRegistration, setSelectedRegistration] = useState(null);
+  const [editResult, setEditResult] = useState('');
 
   useEffect(() => {
     fetchData();
@@ -25,15 +31,14 @@ const RegistrationForm = () => {
     try {
       setLoading(true);
       setError(null);
-      
-      const [studentsResponse, coursesResponse, registrationsResponse] = 
+
+      const [studentsResponse, coursesResponse, registrationsResponse] =
         await Promise.all([
           studentAPI.getAll(),
           courseAPI.getAll(),
           registrationAPI.getAll()
         ]);
 
-      // Ensure we have arrays, even if API returns unexpected data
       const studentsData = Array.isArray(studentsResponse.data) ? studentsResponse.data : [];
       const coursesData = Array.isArray(coursesResponse.data) ? coursesResponse.data : [];
       const registrationsData = Array.isArray(registrationsResponse.data) ? registrationsResponse.data : [];
@@ -41,16 +46,10 @@ const RegistrationForm = () => {
       setStudents(studentsData);
       setCourses(coursesData);
       setRegistrations(registrationsData);
-      
-      console.log('Students loaded:', studentsData);
-      console.log('Courses loaded:', coursesData);
-      console.log('Registrations loaded:', registrationsData);
-      
+
     } catch (err) {
       console.error('Error fetching data:', err);
       setError('Failed to fetch data. Please check if the backend server is running on http://localhost:8080');
-      
-      // Set empty arrays as fallback
       setStudents([]);
       setCourses([]);
       setRegistrations([]);
@@ -69,7 +68,7 @@ const RegistrationForm = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!newRegistration.studentId || !newRegistration.courseId) {
       setError('Please select both student and course.');
       return;
@@ -77,23 +76,24 @@ const RegistrationForm = () => {
 
     try {
       setError(null);
-      
+
       const registrationData = {
         student: { id: parseInt(newRegistration.studentId) },
-        course: { id: parseInt(newRegistration.courseId) }
+        course: { id: parseInt(newRegistration.courseId) },
+        result: newRegistration.result || null
       };
 
       await registrationAPI.create(registrationData);
       setSuccess(true);
-      setNewRegistration({ studentId: '', courseId: '' });
-      fetchData(); // Refresh the data
-      
+      setNewRegistration({ studentId: '', courseId: '', result: '' });
+      fetchData();
+
       setTimeout(() => setSuccess(false), 3000);
     } catch (err) {
       console.error('Error creating registration:', err);
-      const errorMessage = err.response?.data?.message || 
-                          err.response?.data?.error || 
-                          'Failed to create registration. Please try again.';
+      const errorMessage = err.response?.data?.message ||
+        err.response?.data?.error ||
+        'Failed to create registration. Please try again.';
       setError(errorMessage);
     }
   };
@@ -111,6 +111,31 @@ const RegistrationForm = () => {
     }
   };
 
+  // --- Edit Result Functions ---
+  const openEditModal = (registration) => {
+    setSelectedRegistration(registration);
+    setEditResult(registration.result || '');
+    setEditModal(true);
+  };
+
+  const handleUpdateResult = async () => {
+    try {
+      const updatedData = { ...selectedRegistration, result: editResult };
+      await registrationAPI.update(selectedRegistration.id, updatedData);
+
+      setRegistrations(registrations.map(r =>
+        r.id === selectedRegistration.id ? { ...r, result: editResult } : r
+      ));
+
+      setEditModal(false);
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 3000);
+    } catch (err) {
+      console.error('Error updating result:', err);
+      setError('Failed to update result.');
+    }
+  };
+
   if (loading) return <LoadingSpinner message="Loading registration data..." />;
 
   return (
@@ -120,7 +145,7 @@ const RegistrationForm = () => {
       </div>
 
       {error && <Alert variant="danger">{error}</Alert>}
-      {success && <Alert variant="success">Registration created successfully!</Alert>}
+      {success && <Alert variant="success">Operation completed successfully!</Alert>}
 
       <Row>
         <Col md={4}>
@@ -139,7 +164,7 @@ const RegistrationForm = () => {
                     required
                   >
                     <option value="">Choose a student...</option>
-                    {students && students.length > 0 ? (
+                    {students.length > 0 ? (
                       students.map(student => (
                         <option key={student.id} value={student.id}>
                           {student.studentId} - {student.firstName} {student.lastName}
@@ -160,7 +185,7 @@ const RegistrationForm = () => {
                     required
                   >
                     <option value="">Choose a course...</option>
-                    {courses && courses.length > 0 ? (
+                    {courses.length > 0 ? (
                       courses.map(course => (
                         <option key={course.id} value={course.id}>
                           {course.code} - {course.title}
@@ -172,9 +197,20 @@ const RegistrationForm = () => {
                   </Form.Select>
                 </Form.Group>
 
-                <Button 
-                  type="submit" 
-                  variant="primary" 
+                <Form.Group className="mb-3">
+                  <Form.Label>Result (Optional)</Form.Label>
+                  <Form.Control
+                    type="text"
+                    placeholder="Enter marks/grade"
+                    name="result"
+                    value={newRegistration.result}
+                    onChange={handleInputChange}
+                  />
+                </Form.Group>
+
+                <Button
+                  type="submit"
+                  variant="primary"
                   className="w-100"
                   disabled={!students.length || !courses.length}
                 >
@@ -182,20 +218,6 @@ const RegistrationForm = () => {
                   Create Registration
                 </Button>
               </Form>
-            </Card.Body>
-          </Card>
-
-          {/* Debug Information */}
-          <Card className="mb-4">
-            <Card.Header>
-              <h6 className="mb-0">Debug Info</h6>
-            </Card.Header>
-            <Card.Body>
-              <small className="text-muted">
-                Students: {students ? students.length : 0}<br/>
-                Courses: {courses ? courses.length : 0}<br/>
-                Registrations: {registrations ? registrations.length : 0}
-              </small>
             </Card.Body>
           </Card>
         </Col>
@@ -214,6 +236,7 @@ const RegistrationForm = () => {
                     <tr>
                       <th>Student</th>
                       <th>Course</th>
+                      <th>Result</th>
                       <th>Registration Date</th>
                       <th>Status</th>
                       <th>Actions</th>
@@ -231,21 +254,32 @@ const RegistrationForm = () => {
                           {registration.course?.code} - {registration.course?.title}
                         </td>
                         <td>
-                          {registration.registrationDate ? 
-                            new Date(registration.registrationDate).toLocaleDateString() : 
+                          {registration.result || <span className="text-muted">N/A</span>}
+                        </td>
+                        <td>
+                          {registration.registrationDate ?
+                            new Date(registration.registrationDate).toLocaleDateString() :
                             'N/A'
                           }
                         </td>
                         <td>
                           <span className={`badge ${
                             registration.status === 'ACTIVE' ? 'bg-success' :
-                            registration.status === 'COMPLETED' ? 'bg-primary' :
-                            'bg-warning'
+                              registration.status === 'COMPLETED' ? 'bg-primary' :
+                                'bg-warning'
                           }`}>
                             {registration.status || 'ACTIVE'}
                           </span>
                         </td>
                         <td>
+                          <Button
+                            variant="outline-primary"
+                            size="sm"
+                            className="me-2"
+                            onClick={() => openEditModal(registration)}
+                          >
+                            <FaEdit />
+                          </Button>
                           <Button
                             variant="outline-danger"
                             size="sm"
@@ -264,11 +298,32 @@ const RegistrationForm = () => {
         </Col>
       </Row>
 
-      <div className="mt-3">
-        <small className="text-muted">
-          Total registrations: {registrations ? registrations.length : 0}
-        </small>
-      </div>
+      {/* Edit Result Modal */}
+      <Modal show={editModal} onHide={() => setEditModal(false)}>
+        <Modal.Header closeButton>
+          <Modal.Title>Edit Result</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Form.Group>
+            <Form.Label>Result</Form.Label>
+            <Form.Control
+              type="text"
+              value={editResult}
+              onChange={(e) => setEditResult(e.target.value)}
+              placeholder="Enter new result (e.g., 85 or A)"
+            />
+          </Form.Group>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setEditModal(false)}>
+            Cancel
+          </Button>
+          <Button variant="primary" onClick={handleUpdateResult}>
+            <FaSave className="me-2" /> Save Changes
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
     </div>
   );
 };
