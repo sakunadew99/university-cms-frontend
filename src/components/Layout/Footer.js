@@ -10,7 +10,7 @@ const Footer = () => {
             <p className="mb-0">&copy; 2025 University Course Management System</p>
           </div>
           <div className="col-md-6 text-md-end">
-            <p className="mb-0">Built with Spring Boot & React.js</p>
+            <p className="mb-0">S.S.K Dewanarayana</p>
           </div>
         </div>
       </Container>
